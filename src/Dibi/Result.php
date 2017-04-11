@@ -15,8 +15,10 @@ namespace Dibi;
  * $result = dibi::query('SELECT * FROM [table]');
  *
  * $row   = $result->fetch();
+ * $row   = $result->fetchNum();
  * $value = $result->fetchSingle();
  * $table = $result->fetchAll();
+ * $table = $result->fetchAllNums();
  * $pairs = $result->fetchPairs();
  * $assoc = $result->fetchAssoc('col1');
  * $assoc = $result->fetchAssoc('col1[]col2->col3');
@@ -202,6 +204,24 @@ class Result implements IDataSource
 		return $row;
 	}
 
+    /**
+     * @return array|bool|mixed
+     */
+    final public function fetchNum() {
+        $row = $this->getResultDriver()->fetch(FALSE);
+        if (!is_array($row)) {
+            return FALSE;
+        }
+        $this->fetched = TRUE;
+        $this->normalize($row);
+        if ($this->rowFactory) {
+            return call_user_func($this->rowFactory, $row);
+        } elseif ($this->rowClass) {
+            $row = new $this->rowClass($row);
+        }
+        return $row;
+    }
+
 
 	/**
 	 * Like fetch(), but returns only first field.
@@ -245,6 +265,27 @@ class Result implements IDataSource
 
 		return $data;
 	}
+
+    final public function fetchAllNums($offset = NULL, $limit = NULL)
+    {
+        $limit = $limit === NULL ? -1 : (int) $limit;
+        $this->seek((int) $offset);
+        $row = $this->fetchNum();
+        if (!$row) {
+            return [];  // empty result set
+        }
+
+        $data = [];
+        do {
+            if ($limit === 0) {
+                break;
+            }
+            $limit--;
+            $data[] = $row;
+        } while ($row = $this->fetchNum());
+
+        return $data;
+    }
 
 
 	/**
